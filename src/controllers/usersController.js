@@ -12,6 +12,11 @@ export async function getUsers(req, res, next) {
       return res.json({ message: 'OK', data: n })
     }
 
+    // Handle limit=0 case (return empty array)
+    if (limit === 0) {
+      return res.json({ message: 'OK', data: [] })
+    }
+
     let q = User.find(where || {})
     if (sort) q = q.sort(sort)
     if (select) q = q.select(select)
@@ -38,7 +43,8 @@ export async function createUser(req, res, next) {
 export async function getUserById(req, res, next) {
   try {
     const { select } = req.query
-    const parsedSelect = select ? JSON.parse(select) : null
+    // Use parseJSON with validation for select parameter
+    const parsedSelect = select ? parseJSON(select, null, true) : null
 
     let q = User.findById(req.params.id)
     if (parsedSelect) q = q.select(parsedSelect)
@@ -89,20 +95,25 @@ export async function replaceUser(req, res, next) {
     for (const taskId of newPendingTasks) {
       const task = await Task.findById(taskId)
       if (task) {
+        // If task was assigned to another user, remove it from their pendingTasks
+        if (task.assignedUser && task.assignedUser !== user._id.toString()) {
+          const previousUser = await User.findById(task.assignedUser)
+          if (previousUser) {
+            previousUser.pendingTasks = previousUser.pendingTasks.filter(
+              tid => tid !== taskId
+            )
+            await previousUser.save()
+          }
+        }
+        
         task.assignedUser = user._id.toString()
         task.assignedUserName = user.name
         await task.save()
       }
     }
 
-    // Re-fetch user's pendingTasks from DB (only incomplete tasks)
-    const incompleteTasks = await Task.find({
-      assignedUser: user._id.toString(),
-      completed: false
-    }).select('_id')
-    user.pendingTasks = incompleteTasks.map(t => t._id.toString())
-    await user.save()
-
+    // Note: We keep the user's explicitly set pendingTasks
+    // even if some tasks are completed, respecting the user's PUT request
     return res.json({ message: 'OK', data: user })
   } catch (err) {
     next(err)

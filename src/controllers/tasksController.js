@@ -12,6 +12,11 @@ export async function getTasks(req, res, next) {
       return res.json({ message: 'OK', data: n })
     }
 
+    // Handle limit=0 case (return empty array)
+    if (limit === 0) {
+      return res.json({ message: 'OK', data: [] })
+    }
+
     let q = Task.find(where || {})
     if (sort) q = q.sort(sort)
     if (select) q = q.select(select)
@@ -59,7 +64,8 @@ export async function createTask(req, res, next) {
 export async function getTaskById(req, res, next) {
   try {
     const { select } = req.query
-    const parsedSelect = select ? JSON.parse(select) : null
+    // Use parseJSON with validation for select parameter
+    const parsedSelect = select ? parseJSON(select, null, true) : null
 
     let q = Task.findById(req.params.id)
     if (parsedSelect) q = q.select(parsedSelect)

@@ -2,9 +2,9 @@ export default (err, req, res, next) => {
   let status = err.status || 500
   let message = err.message || 'Internal Server Error'
 
-  // Handle CastError
+  // Handle CastError (invalid ID format should return 404 per FAQ)
   if (err.name === 'CastError') {
-    status = 400
+    status = 404
     message = 'Invalid ID format'
   }
 
